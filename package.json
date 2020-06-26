@@ -1,0 +1,17 @@
+{
+  "name": "MinecraftBot",
+  "version": "1.0.0",
+  "description": "A bot to help seamlessly open and close a Minecraft server remotely.",
+  "main": "MinecraftBot.js",
+  "dependencies": {
+    "discord.js": "^12.2.0",
+    "node-fetch": "^2.6.0",
+    "child_process": "^1.0.2"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC"
+}

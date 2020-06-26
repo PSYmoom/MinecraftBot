@@ -1,8 +1,9 @@
-const Discord = require('discord.js');
+const {Client, MessageEmbed} = require('discord.js');
 const spawn = require('child_process').spawn;
 const fetch = require('node-fetch');
+const commands = require('./help.json');
 
-const client = new Discord.Client();
+const client = new Client();
 const bot_secret_token = "YOUR_BOT_SECRET_TOCKEN";
 const MC_SERVER_START_SCRIPT = "LOCATION OF BAT FILE; Note: The .bat file has to cd to the server's location for the bot to work";
 var mcserver;
@@ -70,6 +71,19 @@ client.on('message', msg => {
       console.log("IP requested by " + msg.member.user.tag);
       msg.channel.send("The IP of the Minecraft server is " + body);
     });
+  } else if (msg.content === "!mchelp") {
+    console.log("Help requested by " + msg.member.user.tag);
+    let embededHelp = new MessageEmbed()
+      .setColor("#FFFFFF")
+      .setTitle("MinecraftBot Help");
+
+    for (let command in commands) {
+      if (commands.hasOwnProperty(command)) {
+        embededHelp.addField(command, commands[command]);
+      }
+    }
+
+    msg.channel.send(embededHelp);
   }
 });
 
