@@ -6,6 +6,7 @@ const commands = require('./help.json');
 const client = new Client();
 const bot_secret_token = "YOUR_BOT_SECRET_TOCKEN";
 const MC_SERVER_START_SCRIPT = "LOCATION OF BAT FILE; Note: The .bat file has to cd to the server's location for the bot to work";
+const admin = "NAME OF THE ROLE OF ADMINS IN DISCORD; USED FOR MINECRAFT SERVER COMMANDS";
 var mcserver;
 var inProcess = false;
 
@@ -26,7 +27,7 @@ client.on('message', msg => {
         mcserver.stdout.on('data', (data) => {
           data = data.slice(0, data.length - 2);
           console.log("stdout: " + data);
-          if (data.slice(data.length - 6, data.length) == "\"help\"") { //might close abruptly when someone types "help"
+          if (data.slice(data.length - 6, data.length) == "\"help\"") {
             resolve("Server open!");
           }
         });
@@ -71,6 +72,25 @@ client.on('message', msg => {
       console.log("IP requested by " + msg.member.user.tag);
       msg.channel.send("The IP of the Minecraft server is " + body);
     });
+  } else if (msg.content.split(" ")[0] === "!mccommand") {
+    if (mcserver === null) {
+      msg.channel.send("Server is not on!");
+    } else if (msg.member.roles.cache.find(role => role.name === admin) === undefined){
+      msg.channel.send("You do not have permission to send admin commands");
+    } else if (msg.content.split(" ").length === 1){
+      msg.channel.send("Invalid use of !mccommand. Usage: !mccommand <command>");
+    } else {
+      let tempCommandArray = msg.content.split(" ");
+      let tempCommand = "";
+
+      for (var i = 1; i < tempCommandArray.length; i++) {
+        tempCommand += tempCommandArray[i] + " ";
+      }
+      tempCommand = tempCommand.trim() + "\n";
+
+      mcserver.stdin.write(tempCommand);
+      msg.channel.send("Successfully sent the command " + tempCommand);
+    }
   } else if (msg.content === "!mchelp") {
     console.log("Help requested by " + msg.member.user.tag);
     let embededHelp = new MessageEmbed()
@@ -87,4 +107,4 @@ client.on('message', msg => {
   }
 });
 
-client.login(bot_secret_token)
+client.login(bot_secret_token);
