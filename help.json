@@ -2,6 +2,8 @@
   "!mcstart": "Remotely start the Minecraft server.",
   "!mcstop" : "Remotely stop the Minecraft server.",
   "!mcip" : "Request the public IP of the host of Minecraft server.",
-  "!mchelp" : "Display all possible commands.",
   "!mccommand <command>" : "Remotely send a command to the server",
+  "!mcstatus" : "Check the status of the Minecraft server.",
+  "!mconline" : "Check who are playing currently on the Minecraft server.",
+  "!mchelp" : "Display all possible commands."
 }
