@@ -36,6 +36,6 @@ A Discord bot developed using [Discord.js](https://discord.js.org/#/) to help se
 1. (Optional) Alternatively, you can set up the server to turn on during startup.
     1. Open Run and enter `shell:startup`.
   
-    1. Move [MinecraftBotStartUp.bat]() to the folder that opens up.
+    1. Move [MinecraftBotStartUp.bat](https://github.com/PSYmoom/MinecraftBot/blob/master/MinecraftBotStartUp.bat) to the folder that opens up.
   
-    1. Change the location in [MinecraftBotStartUp.bat]() to match the location of your Discord Bot. 
+    1. Change the location in [MinecraftBotStartUp.bat](https://github.com/PSYmoom/MinecraftBot/blob/master/server_start.bat#L2) to match the location of your Discord Bot. 
