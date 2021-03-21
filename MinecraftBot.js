@@ -5,14 +5,15 @@ const commands = require('./help.json');
 
 const client = new Client();
 const bot_secret_token = "YOUR_BOT_SECRET_TOCKEN";
-const MC_SERVER_START_SCRIPT = "LOCATION OF BAT FILE; Note: The .bat file has to cd to the server's location for the bot to work";
+const MC_SERVER_START_SCRIPT = ["LOCATION OF MINECRAFT BAT FILE", "LOCATION OF MODDEDMINECRAFT BAT FILE"]; //Note: The .bat file has to cd to the server's location for the bot to work";
 const admin = "NAME OF THE ROLE OF ADMINS IN DISCORD; USED FOR MINECRAFT SERVER COMMANDS";
-var mcserver = null;
+const helpTitle = ["Vanilla Help (Port 25565)", "Modded Help (Port 25566)"];
+var mcserver = [null, null];
 
 //Flag to provide mutual exclusionfor the server thread
-var inProcess = false;
+var inProcess = [false, false];
 //Flag used to allow server to send message to discord channel (Prevents sending unnecessary messages)
-var sendServerMsg = false;
+var sendServerMsg = [false, false];
 
 client.on('ready', () => {
   console.log(`Logged in as ${client.user.tag}!`);
@@ -20,12 +21,22 @@ client.on('ready', () => {
 
 client.on('message', msg => {
   if (msg.content === '!mcstart') {
-      startSequence(msg);
+      startSequence(msg, 0);
+      return;
+  }
+
+  if (msg.content === '!moddedmcstart') {
+      startSequence(msg, 1);
       return;
   }
 
   if (msg.content === '!mcstop') {
-      stopSequence(msg);
+      stopSequence(msg, 0);
+      return;
+  }
+
+  if (msg.content === '!moddedmcstop') {
+      stopSequence(msg, 1);
       return;
   }
 
@@ -35,93 +46,115 @@ client.on('message', msg => {
   }
 
   if (msg.content.split(" ")[0] === "!mccommand") {
-      commandSequence(msg, null);
+      commandSequence(msg, null, 0);
+      return;
+  }
+
+  if (msg.content.split(" ")[0] === "!moddedmccommand") {
+      commandSequence(msg, null, 1);
       return;
   }
 
   if (msg.content === "!mchelp") {
-      helpSequence(msg);
+      helpSequence(msg, 0);
+      return;
+  }
+
+  if (msg.content === "!moddedmchelp") {
+      helpSequence(msg, 1);
       return;
   }
 
   if (msg.content === "!mcstatus") {
-      statusSequence(msg);
+      statusSequence(msg, 0);
+      return;
+  }
+
+  if (msg.content === "!moddedmcstatus") {
+      statusSequence(msg, 1);
       return;
   }
 
   if (msg.content === "!mconline") {
-      onlineSequence(msg);
+      onlineSequence(msg, 0);
+      return;
+  }
+
+  if (msg.content === "!moddedmconline") {
+      onlineSequence(msg, 1);
       return;
   }
 });
 
-//Command: !mcstart
+//Command: !mcstart & !moddedmcstart
 function startSequence(msg) {
-    if (inProcess) {
-        //Check if the server is currently running an operation or not
-        msg.channel.send("Please wait for the process to finish executing");
-    } else if (mcserver != null) {
-        //Check if the server is on or not
-        msg.channel.send("Server is already on!");
-    } else {
-        //Create a child process and wait until it finishes initializing
-        inProcess = true;
-        msg.channel.send("Starting server...");
-        mcserver = spawn(MC_SERVER_START_SCRIPT);
+  if (inProcess[server]) {
+      //Check if the server is currently running an operation or not
+      msg.channel.send("Please wait for the process to finish executing");
+  } else if (mcserver[server] != null) {
+      //Check if the server is on or not
+      msg.channel.send("Server is already on!");
+  } else {
+      //Create a child process and wait until it finishes initializing
+      inProcess[server] = true;
+      msg.channel.send("Starting server...");
+      mcserver[server] = spawn(MC_SERVER_START_SCRIPT[server]);
 
-        let promise = new Promise((resolve, reject) => {
+      let promise = new Promise((resolve, reject) => {
 
-          mcserver.stdout.on('data', (data) => {
-            data = data.slice(0, data.length - 2);
-            console.log("stdout: " + data);
+        mcserver[server].stdout.on('data', (data) => {
+          data = data.slice(0, data.length - 2);
+          console.log("stdout: " + data);
 
-            if (sendServerMsg) {
-                let temp = data.toString().split(" ");
-                msg.channel.send(temp.splice(3, temp.length).join(" "));
-            }
+          if (sendServerMsg[server]) {
+              let temp = data.toString().split(" ");
+              msg.channel.send(temp.splice(3, temp.length).join(" "));
+          }
 
-            if (data.slice(data.length - 6, data.length) == "\"help\"")
-                resolve("Server open!");
-          });
+          console.log(data.slice(data.length - 21, data.length).toString());
 
-          mcserver.stderr.on('data', (data) => {
-              reject("stderr: " + data);
-          });
-
+          if (data.slice(data.length - 6, data.length) == "\"help\"" && server == 0 || data.slice(data.length - 21, data.length) == "Unloading dimension 1" && server == 1)
+              resolve("Server open!");
         });
 
-        promise.then((message) => {
-            console.log(message);
-            msg.channel.send(message);
-        }).catch((error) => {
-            mcserver = null;
-            console.log(error);
-            msg.channel.send(error);
-        }).finally(() => {
-            inProcess = false;
+        mcserver[server].stderr.on('data', (data) => {
+            reject("stderr: " + data);
         });
-    }
+
+      });
+
+      promise.then((message) => {
+          console.log(message);
+          msg.channel.send(message);
+      }).catch((error) => {
+          mcserver[server] = null;
+          console.log(error);
+          msg.channel.send(error);
+      }).finally(() => {
+          inProcess[server] = false;
+      });
+  }
 }
 
-//Command: !mcstop
-function stopSequence(msg) {
-    if (inProcess) {
+//Command: !mcstop & !moddedmcstop
+function stopSequence(msg, server) {
+    if (inProcess[server]) {
         //Check if the server is currently running an operation or not
         msg.channel.send("Please wait for the process to finish executing");
-    } else if (mcserver == null) {
+    } else if (mcserver[server] == null) {
         //Check if the server is off or not
         msg.channel.send("Server is not on!");
     } else {
         //Send the stop signal to the child process
-        inProcess = true;
+        inProcess[server] = true;
         msg.channel.send("Stopping server...");
-        mcserver.stdin.write('stop\n');
+        mcserver[server].stdin.write('stop\n');
 
-        mcserver.on('exit', (code) => {
+        mcserver[server].on('exit', (code) => {
             console.log("Minecraft Server exited with code " + code);
             msg.channel.send("Minecraft Server exited with code " + code);
-            mcserver = null;
-            inProcess = false;
+            mcserver[server] = null;
+            inProcess[server] = false;
         });
     }
 }
@@ -139,11 +172,11 @@ function ipSequence(msg) {
 //TODO?: Find a better way to print on discord server
 //Currently a guessing game; Waits for 0.5s before stopping the server sending
 //Tested on most commands and various senarios without running into issues
-function commandSequence(msg, msgContent) {
+function commandSequence(msg, msgContent, server) {
     let tempCommandArray = msg.content.split(" ");
     let tempCommand = "";
 
-    if (mcserver === null) {
+    if (mcserver[server] === null) {
         //Check if the server is on or not
         msg.channel.send("Server is not on!");
         return;
@@ -172,42 +205,42 @@ function commandSequence(msg, msgContent) {
     }
 
     //Send the command to child process using write
-    sendServerMsg = true;
-    mcserver.stdin.write(tempCommand);
+    sendServerMsg[server] = true;
+    mcserver[server].stdin.write(tempCommand);
 
-    setTimeout( () => {sendServerMsg = false} , 500);
+    setTimeout( () => {sendServerMsg[server] = false} , 500);
 }
 
 //Command: !mchelp
-function helpSequence(msg) {
+function helpSequence(msg, server) {
     //Sends help msg as an embeded msg
     console.log("Help requested by " + msg.member.user.tag);
     let embededHelp = new MessageEmbed()
       .setColor("#FFFFFF")
-      .setTitle("MinecraftBot Help");
-
-    for (let command in commands) {
-      if (commands.hasOwnProperty(command)) {
-        embededHelp.addField(command, commands[command]);
+      .setTitle(helpTitle[server]);
+    let temp = commands[server];
+    for (let command in temp) {
+      if (temp.hasOwnProperty(command)) {
+        embededHelp.addField(command, temp[command]);
       }
     }
 
     msg.channel.send(embededHelp);
 }
 
-//Command: !mcstatus
-function statusSequence(msg) {
-    if (mcserver === null) {
-        msg.channel.send("Server Status: Online");
+//Command: !mcstatus & !moddedmcstatus
+function statusSequence(msg, server) {
+    if (mcserver[server] === null) {
+        msg.channel.send("Server Status: Offline");
         return;
     }
 
     msg.channel.send("Server Status: Online");
 }
 
-//Command: !mconline
-function onlineSequence(msg) {
-    commandSequence(msg, "list\n");
+//Command: !mconline & !moddedmconline
+function onlineSequence(msg, server) {
+    commandSequence(msg, "list\n", server);
 }
 
 client.login(bot_secret_token);
