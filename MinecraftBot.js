@@ -8,7 +8,10 @@ const bot_secret_token = "YOUR_BOT_SECRET_TOCKEN";
 const MC_SERVER_START_SCRIPT = "LOCATION OF BAT FILE; Note: The .bat file has to cd to the server's location for the bot to work";
 const admin = "NAME OF THE ROLE OF ADMINS IN DISCORD; USED FOR MINECRAFT SERVER COMMANDS";
 var mcserver = null;
+
+//Flag to provide mutual exclusionfor the server thread
 var inProcess = false;
+//Flag used to allow server to send message to discord channel (Prevents sending unnecessary messages)
 var sendServerMsg = false;
 
 client.on('ready', () => {
@@ -88,10 +91,6 @@ function startSequence(msg) {
         });
 
         promise.then((message) => {
-            //mcserver.stdout.on('data', (data) => {
-            //  if (!inProcess)
-            //    msg.channel.send("server: " + data);
-            //});
             console.log(message);
             msg.channel.send(message);
         }).catch((error) => {
@@ -137,8 +136,9 @@ function ipSequence(msg) {
 }
 
 //Command: !mccommand
-//TODO: Find a better way to print on discord server
+//TODO?: Find a better way to print on discord server
 //Currently a guessing game; Waits for 0.5s before stopping the server sending
+//Tested on most commands and various senarios without running into issues
 function commandSequence(msg, msgContent) {
     let tempCommandArray = msg.content.split(" ");
     let tempCommand = "";
