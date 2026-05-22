@@ -1,6 +1,6 @@
 import { SlashCommandBuilder } from 'discord.js';
 
-import { minecraftServer } from '../../utility/minecraft-server.js';
+import { getServer } from '../../utility/server-registry.js';
 
 // Toggle to enforce ADMIN_ROLE_NAME checking
 export const requireAdminRole = false;
@@ -9,23 +9,34 @@ export const requireAdminRole = false;
 export function createData(requiredMemberPermissions = null) {
     return new SlashCommandBuilder()
         .setName('start-server')
-        .setDescription('Remotely start the Minecraft server')
-        .setDefaultMemberPermissions(requiredMemberPermissions);
+        .setDescription('Remotely start a Minecraft server')
+        .setDefaultMemberPermissions(requiredMemberPermissions)
+        .addStringOption((option) =>
+            option.setName('server')
+                .setDescription('Which Minecraft server to start')
+                .setRequired(true)
+                .setAutocomplete(true));
 }
 
 // Function executed by listener
 export async function execute(interaction) {
-    if (minecraftServer.isBusy()) {
-        // Ensures that no operation is currently being ran on the server
-        await interaction.reply('Server is bust right now! Please wait for the current process to finish executing.');
-        return;
-    } 
+    const name = interaction.options.getString('server');
+    const server = getServer(name);
 
-    if (!minecraftServer.isStopped()) {
-        // Ensures the server is stopped
-        await interaction.reply('Server is already on!');
+    if (!server) {
+        await interaction.reply(`Unknown server: \`${name}\`.`);
         return;
     }
 
-    await minecraftServer.start(interaction);
+    if (server.isBusy()) {
+        await interaction.reply(`Server **${name}** is busy right now! Please wait for the current process to finish executing.`);
+        return;
+    }
+
+    if (!server.isStopped()) {
+        await interaction.reply(`Server **${name}** is already on!`);
+        return;
+    }
+
+    await server.start(interaction);
 }

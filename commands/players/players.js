@@ -1,6 +1,6 @@
 import { SlashCommandBuilder } from 'discord.js';
 
-import { minecraftServer } from '../../utility/minecraft-server.js';
+import { getServer } from '../../utility/server-registry.js';
 
 // Toggle to enforce ADMIN_ROLE_NAME checking
 export const requireAdminRole = false;
@@ -9,17 +9,29 @@ export const requireAdminRole = false;
 export function createData(requiredMemberPermissions = null) {
     return new SlashCommandBuilder()
         .setName('players')
-        .setDescription('Check who are playing currently on the Minecraft server')
-        .setDefaultMemberPermissions(requiredMemberPermissions);
+        .setDescription('Check who is playing currently on a Minecraft server')
+        .setDefaultMemberPermissions(requiredMemberPermissions)
+        .addStringOption((option) =>
+            option.setName('server')
+                .setDescription('Which Minecraft server to query')
+                .setRequired(true)
+                .setAutocomplete(true));
 }
 
 // Function executed by listener
 export async function execute(interaction) {
-    if (!minecraftServer.isRunning()) {
-        // Ensures the server is running
-        await interaction.reply("Server is not on!");
+    const name = interaction.options.getString('server');
+    const server = getServer(name);
+
+    if (!server) {
+        await interaction.reply(`Unknown server: \`${name}\`.`);
         return;
     }
 
-    await minecraftServer.execute(interaction, 'list');
+    if (!server.isRunning()) {
+        await interaction.reply(`Server **${name}** is not on!`);
+        return;
+    }
+
+    await server.execute(interaction, 'list');
 }

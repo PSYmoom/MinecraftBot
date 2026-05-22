@@ -1,8 +1,9 @@
 import { Client, Collection, Events, GatewayIntentBits } from 'discord.js';
 import dotenv from 'dotenv';
 
-import { initMinecraftServer } from './utility/minecraft-server.js';
+import { initServerRegistry } from './utility/server-registry.js';
 import { reloadCommands } from './utility/reload-commands.js';
+import { registerAutocomplete } from './utility/register-autocomplete.js';
 
 // Import env variables
 dotenv.config();
@@ -20,9 +21,8 @@ client.commands = new Collection();
 
 client.once(Events.ClientReady, async (readyClient) => {
     await reloadCommands(client);
-    // Initialize minecraftServer instance once bot is ready
-
-    initMinecraftServer(client);
+    initServerRegistry(client);
+    registerAutocomplete(client);
 
     console.log(`Ready! Logged in as ${readyClient.user.tag}`);
 });
