@@ -1,30 +1,39 @@
 import { once } from 'events';
-import process from 'process';
 import { MessageFlags } from 'discord.js';
 import { spawn } from 'child_process';
 
-import { ServerState, setPresence } from './change-status.js';
+import { ServerState } from './change-status.js';
 
 // --- Class ---
-class MinecraftServer {
+export class MinecraftServer {
     // --- Attributes ---
     #proc;
     #state;
-    #bot;
+    #config;
+    #onStateChange;
 
     // --- Constructor ---
-    constructor(user) {
+    /**
+     * @param {object} config - { name, location, scriptName, port, type }
+     * @param {(server: MinecraftServer) => void} [onStateChange] - Invoked after every state transition.
+     */
+    constructor(config, onStateChange) {
         this.#proc = null;
-        this.#bot = user;
+        this.#config = config;
+        this.#onStateChange = onStateChange;
         this.#updateStatus(ServerState.STOPPED);
     }
 
     // --- Public methods ---
+    getName() { return this.#config.name; }
+    getState() { return this.#state; }
+    getConfig() { return this.#config; }
+
     /**
      * Starts the Minecraft server process.
-     * - Spawns the server_start.bat script as a child process.
+     * - Spawns the per-server start script as a child process.
      * - Wires up stdout/stderr logging and unexpected exit/error handlers.
-     * - Sets internal state to either STARTED or STOPPED based on outcome of start up.
+     * - Sets internal state to either RUNNING or STOPPED based on outcome of start up.
      *
      * Notes:
      * - Notifies the Discord interaction of progress in various steps of the way
@@ -34,13 +43,10 @@ class MinecraftServer {
         this.#updateStatus(ServerState.STARTING);
 
         // Create a child process
-        await interaction.reply('Starting server...');
+        await interaction.reply(`Starting server **${this.#config.name}**...`);
 
-        const defaultScript = process.platform === 'win32' ? 'server_start.bat' : './server_start.sh';
-        const scriptName = process.env.MC_SERVER_SCRIPT_NAME || defaultScript;
-
-        this.#proc = spawn(scriptName, {
-            cwd: process.env.MC_SERVER_SCRIPT_LOCATION,
+        this.#proc = spawn(this.#config.scriptName, {
+            cwd: this.#config.location,
             shell: true
         });
 
@@ -57,7 +63,7 @@ class MinecraftServer {
 
     /**
      * Stops the Minecraft server process gracefully.
-     * - Sends "stop" command to the server’s stdin.
+     * - Sends "stop" command to the server's stdin.
      * - Logs and reports exit code/signal.
      * - Cleans up internal attributes
      *
@@ -70,16 +76,16 @@ class MinecraftServer {
 
         // Set up listener to catch the process exit event 
         this.#proc.once('exit', async (code, signal) => {
-            console.log(this.#errorStatement(code, signal));
+            console.log(`[${this.#config.name}] ${this.#errorStatement(code, signal)}`);
             await interaction.followUp(this.#errorStatement(code, signal));
             this.#cleanup();
         });
 
         // Send the stop signal to the child process
-        await interaction.reply("Stopping server...");
+        await interaction.reply(`Stopping server **${this.#config.name}**...`);
         this.#proc.stdin.write('stop\n');
-
     }
+
     /**
      * Executes a command on the running Minecraft server.
      *
@@ -88,7 +94,7 @@ class MinecraftServer {
      *   which works reliably for most commands
      */
     async execute(interaction, command) {
-        console.log(`${command} command executed by ${interaction.user.username}`);
+        console.log(`[${this.#config.name}] ${command} command executed by ${interaction.user.username}`);
         this.#forwardLogs(interaction);
         this.#proc.stdin.write(command.trim() + '\n');
     }
@@ -117,29 +123,32 @@ class MinecraftServer {
         return this.#state == ServerState.STOPPED;
     }
 
-    //  --- Private methods ---
-    async #updateStatus(serverState) {
-        this.#state = serverState;
-        setPresence(this.#bot, serverState);
+    // --- Private methods ---
+    #isVanilla() {
+        return this.#config.type === 'vanilla';
     }
 
-    async #attachLogging() {
-        if (!this.#proc)
-            return;
+    #updateStatus(serverState) {
+        this.#state = serverState;
+        if (this.#onStateChange) this.#onStateChange(this);
+    }
+
+    #attachLogging() {
+        if (!this.#proc) return;
 
         this.#proc.stdout.on('data', line => {
-            console.log(`stdout: ${line.toString().trim()}`);
+            console.log(`[${this.#config.name}] stdout: ${line.toString().trim()}`);
         });
 
         this.#proc.stderr.on('data', line => {
-            console.error(`stderr: ${line.toString().trim()}`);
+            console.error(`[${this.#config.name}] stderr: ${line.toString().trim()}`);
         });
     }
 
     #onUnexpectedExit() {
         this.#proc.once('exit', (code, signal) => {
             if (this.#state != ServerState.STOPPING) {
-                console.log(this.#errorStatement(code, signal));
+                console.log(`[${this.#config.name}] ${this.#errorStatement(code, signal)}`);
                 // TODO: Send unexpected message to appropriate channel
                 this.#cleanup();
             }
@@ -148,15 +157,14 @@ class MinecraftServer {
 
     #onUnexpectedError() {
         this.#proc.once('error', (err) => {
-            console.log(err);
+            console.log(`[${this.#config.name}]`, err);
             // TODO: Send unexpected message to appropriate channel
             this.#cleanup();
         });
     }
 
     #cleanup() {
-        if (!this.#proc)
-            return;
+        if (!this.#proc) return;
 
         this.#proc.stdout.removeAllListeners('data');
         this.#proc.stderr.removeAllListeners('data');
@@ -169,12 +177,12 @@ class MinecraftServer {
 
     #errorStatement(code, signal) {
         let suffix = code != null ? `${code}` : `signal ${signal}`;
-        return `Minecraft Server exited with code ${suffix}`;
+        return `Minecraft Server **${this.#config.name}** exited with code ${suffix}`;
     }
 
-    // Wait for either "help" on stdout OR first stderr event
+    // Wait for either "help" on stdout (vanilla) / "Server Backup done!" (modded) OR first stderr event
     async #monitorStartup(interaction) {
-        var response = {
+        const response = {
             content: '',
             flags: MessageFlags.Ephemeral,
         };
@@ -182,7 +190,7 @@ class MinecraftServer {
         try {
             response.content = await this.#startRace();
             this.#updateStatus(ServerState.RUNNING);
-            await interaction.followUp(response.content);
+            await interaction.followUp(`**${this.#config.name}**: ${response.content}`);
         } catch (error) {
             this.#proc = null;
             this.#updateStatus(ServerState.STOPPED);
@@ -199,12 +207,16 @@ class MinecraftServer {
     }
 
     async #monitorStartupStdout() {
+        // Modded (Forge) servers log differently and emit non-fatal errors during boot.
+        // Vanilla finishes boot when the help banner prints; Forge prints "Server Backup done!".
+        const completionMarker = this.#isVanilla() ? '"help"' : 'Server Backup done!';
+
         while (this.#state == ServerState.STARTING) {
             let line = await once(this.#proc.stdout, 'data');
             line = line.toString().trim();
-            if (line.endsWith('"help"')) {
+            if (line.endsWith(completionMarker)) {
                 return 'Server open!';
-            } else if (line.includes('ERROR')) {
+            } else if (this.#isVanilla() && line.includes('ERROR')) {
                 throw new Error('Error encountered during startup! Please check console for more details');
             }
         }
@@ -214,8 +226,9 @@ class MinecraftServer {
         while (this.#state == ServerState.STARTING) {
             let line = await once(this.#proc.stderr, 'data');
             line = line.toString().trim();
-            // Ignores warnings
-            if (!line.includes('WARNING')) {
+            // Vanilla treats any non-WARNING stderr line as fatal. Modded servers
+            // emit lots of harmless stderr chatter during boot, so we ignore it.
+            if (this.#isVanilla() && !line.includes('WARNING')) {
                 throw new Error('stderr: ' + line);
             }
         }
@@ -224,7 +237,7 @@ class MinecraftServer {
     // Forwards all logs collected to Discord during durationMs
     async #forwardLogs(interaction, durationMs = 500) {
         const end = Date.now() + durationMs;
-        let log = 'Command executed successfully! Here is the relevent log output:\n';
+        let log = 'Command executed successfully! Here is the relevant log output:\n';
 
         while (Date.now() < end) {
             const timeout = end - Date.now();
@@ -232,10 +245,7 @@ class MinecraftServer {
                 once(this.#proc.stdout, 'data'),
                 new Promise(resolve => setTimeout(resolve, timeout))]);
 
-                if (!line) {
-                // Timed out
-                break;
-            }
+            if (!line) break;
 
             log += line.toString().trim() + '\n';
         }
@@ -247,20 +257,5 @@ class MinecraftServer {
         }
 
         await interaction.reply(log);
-        return;
     }
-}
-
-export let minecraftServer;
-
-/**
- * Initialize the MinecraftServer instance.
- * Call this once the Discord client is ready.
- */
-export function initMinecraftServer(client) {
-    if (!client?.user) {
-        throw new Error('Client is not ready. Presence cannot be set.');
-    }
-
-    minecraftServer = new MinecraftServer(client.user);
 }

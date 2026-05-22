@@ -1,12 +1,38 @@
 # MinecraftBot for Discord Servers
-A Discord bot developed using [Discord.js](https://discord.js.org/#/) to seamlessly interact with a Minecraft server remotely using Discord servers. Runs on Windows, Linux, and macOS. Server members can request the host's IP and server population. Admin privileges can be set up using Discord roles.
+A Discord bot developed using [Discord.js](https://discord.js.org/#/) to seamlessly manage one or more Minecraft servers remotely from Discord. Runs on Windows, Linux, and macOS. Server members can request the host's IP and server population. Admin privileges can be set up using Discord roles.
 
 ## Usage
-* `/start-server` : Remotely start the Minecraft server.
-* `/server-stop` : Remotely stop the Minecraft server.
-* `/fetch-ip` : Request the public IP of the host of Minecraft server.
-* `/execute <command>` : Remotely send a command to the server (Admin privileges required).
-* `/players` : Check who are playing currently on the Minecraft server.
+* `/start-server <server>` : Remotely start a Minecraft server.
+* `/stop-server <server>` : Remotely stop a Minecraft server.
+* `/execute <server> <command>` : Remotely send a command to a server (admin privileges required).
+* `/players <server>` : Check who is playing currently on a server.
+* `/fetch-ip` : Request the public IP of the host.
+* `/list-servers` : Show all configured servers with their type, port, and state.
+* `/reload-servers` : Re-scan `MC_SERVERS_ROOT` for new/removed folders (admin privileges required).
+
+The `<server>` argument is auto-completed in Discord.
+
+## Server layout
+Point `MC_SERVERS_ROOT` at a parent folder containing one subfolder per Minecraft server. The bot names each server after its folder and inspects the contents to figure out the rest.
+
+```
+MC_SERVERS_ROOT/
+  vanilla_world/
+    server_start.bat   (or server_start.sh on Linux/macOS)
+    server.properties
+    server.jar
+  modded_world/
+    server_start.bat
+    server.properties
+    forge-1.20.1-47.4.0.jar
+    mods/
+```
+
+* **Type**: `modded` if the folder contains a `forge-*.jar`, `fabric-server-launch.jar`, or a non-empty `mods/`; otherwise `vanilla`. Modded servers use looser boot-output checks (Forge emits non-fatal errors during startup).
+* **Port**: read from `server-port=` in `server.properties` (default `25565`). Duplicate ports across folders log a warning at startup.
+* **Skip**: folders missing the platform's start script are ignored.
+
+Add a server by creating a folder and calling `/reload-servers`.
 
 ## Prerequisites
 1. [Install Node.js and discord.js](https://discordjs.guide/preparations/)
@@ -18,11 +44,11 @@ A Discord bot developed using [Discord.js](https://discord.js.org/#/) to seamles
 ## Installation guide
 1. Clone this repository.
 
-1. Move the start script to the folder containing the Minecraft server:
+1. For each Minecraft server you want the bot to manage, create a subfolder under your `MC_SERVERS_ROOT` and copy the appropriate start script into it:
     1. On Windows, copy `server_start.bat`.
-    1. On Linux/macOS, copy `server_start.sh` and run `chmod +x server_start.sh` so it can execute.
+    1. On Linux/macOS, copy `server_start.sh` and run `chmod +x server_start.sh`.
     1. (Optional) Change the [minimum and maximum RAM allocated](https://minecraft.gamepedia.com/Tutorials/Setting_up_a_server#Java_options) in the script to a value of your choice.
-    1. (Note) You can reuse your own start script. Please remove any pause commands if this is the case. If you renamed the script, set `MC_SERVER_SCRIPT_NAME` in `.env` to match.
+    1. Make sure each server's `server.properties` has a unique `server-port=` so they don't collide.
 
 1. Change `ADMIN_ROLE_NAME` in [.env_sample](https://github.com/PSYmoom/MinecraftBot/blob/master/.env_sample#L1) to match the role of admins in your server.
 
@@ -32,15 +58,13 @@ A Discord bot developed using [Discord.js](https://discord.js.org/#/) to seamles
 
 1. Change `DISCORD_GUILD_ID` in [.env_sample](https://github.com/PSYmoom/MinecraftBot/blob/master/.env_sample#L4) to match your Discord server's guild ID.
 
-1. Change `MC_SERVER_SCRIPT_LOCATION` in [.env_sample](https://github.com/PSYmoom/MinecraftBot/blob/master/.env_sample#L5) to match the directory of your start script.
+1. Change `MC_SERVERS_ROOT` in [.env_sample](https://github.com/PSYmoom/MinecraftBot/blob/master/.env_sample#L12) to the absolute path of the parent folder containing your Minecraft server subdirectories.
 
-1. (Optional) Set `MC_SERVER_SCRIPT_NAME` in [.env_sample](https://github.com/PSYmoom/MinecraftBot/blob/master/.env_sample) only if you renamed your start script. The bot defaults to `server_start.bat` on Windows and `./server_start.sh` on Linux/macOS.
+1. Rename `.env_sample` to `.env`.
 
-1. Rename `.env_sample` file to `.env`.
+1. Setup is complete. Use `npm install` and `npm run start` from the Discord Bot's location to start the bot.
 
-1. The set up is complete! Use `npm install` and `npm run start` from the Discord Bot's location to start the bot.
-
-1. (Optional) Alternatively, you can set up the bot to automatically start when your host machine is booted up.
+1. (Optional) Set up the bot to automatically start when your host machine boots:
 
     **Windows:**
     1. Open Run and enter `shell:startup`.

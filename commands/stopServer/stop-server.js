@@ -1,31 +1,42 @@
 import { SlashCommandBuilder } from 'discord.js';
 
-import { minecraftServer } from '../../utility/minecraft-server.js';
+import { getServer } from '../../utility/server-registry.js';
 
 // Toggle to enforce ADMIN_ROLE_NAME checking
 export const requireAdminRole = false;
 
-// Command 
+// Command definition
 export function createData(requiredMemberPermissions = null) {
     return new SlashCommandBuilder()
         .setName('stop-server')
-        .setDescription('Remotely stop the Minecraft server')
-            .setDefaultMemberPermissions(requiredMemberPermissions);
+        .setDescription('Remotely stop a Minecraft server')
+        .setDefaultMemberPermissions(requiredMemberPermissions)
+        .addStringOption((option) =>
+            option.setName('server')
+                .setDescription('Which Minecraft server to stop')
+                .setRequired(true)
+                .setAutocomplete(true));
 }
 
 // Function executed by listener
 export async function execute(interaction) {
-    if (minecraftServer.isBusy()) {
-        // Ensures that no operation is currently being ran on the server
-        await interaction.reply('Server is busy right now! Please wait for the current process to finish executing.');
-        return;
-    } 
+    const name = interaction.options.getString('server');
+    const server = getServer(name);
 
-    if (!minecraftServer.isRunning()) {
-        // Ensures the server is running
-        await interaction.reply("Server is not on!");
+    if (!server) {
+        await interaction.reply(`Unknown server: \`${name}\`.`);
         return;
     }
 
-    await minecraftServer.stop(interaction);
+    if (server.isBusy()) {
+        await interaction.reply(`Server **${name}** is busy right now! Please wait for the current process to finish executing.`);
+        return;
+    }
+
+    if (!server.isRunning()) {
+        await interaction.reply(`Server **${name}** is not on!`);
+        return;
+    }
+
+    await server.stop(interaction);
 }
