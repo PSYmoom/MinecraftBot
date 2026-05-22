@@ -36,10 +36,13 @@ class MinecraftServer {
         // Create a child process
         await interaction.reply('Starting server...');
 
-        this.#proc = spawn(process.env.MC_SERVER_SCRIPT_NAME, { 
+        const defaultScript = process.platform === 'win32' ? 'server_start.bat' : './server_start.sh';
+        const scriptName = process.env.MC_SERVER_SCRIPT_NAME || defaultScript;
+
+        this.#proc = spawn(scriptName, {
             cwd: process.env.MC_SERVER_SCRIPT_LOCATION,
             shell: true
-        }); 
+        });
 
         // Set up logging to console
         this.#attachLogging();
